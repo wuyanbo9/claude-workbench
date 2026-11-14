@@ -235,7 +235,7 @@ export const register: Register = on => {
     }
 
     return (
-      <Box flexDirection="column" flexGrow={1} height="100%">
+      <Box flexDirection="column">
         {running.length > 0 && (
           <Box flexDirection="column" backgroundColor="#d977571a" paddingX="md" paddingY="sm" gap="sm">
             {running.map(runRow)}
@@ -247,7 +247,7 @@ export const register: Register = on => {
           </Box>
         )}
         {running.length === 0 && todos.length === 0 && (
-          <Box flexDirection="column" flexGrow={1} height="100%" alignItems="center" justifyContent="center" gap="sm" paddingBottom="xl">
+          <Box flexDirection="column" alignItems="center" gap="sm" paddingTop={12}>
             <Text size="title" weight="semibold" color="success">
               ✓
             </Text>
