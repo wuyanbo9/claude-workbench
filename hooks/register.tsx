@@ -53,7 +53,8 @@ export const register: Register = on => {
     })
     await $.command.register({ name: 'todo', description: '打开工作台面板（正在运行 + 待你处理）' })
     // every session shares the store: open only when something waits, and pick up other sessions' changes
-    if (Array.isArray(stored) && stored.length) void $.ui.open({ id: PANE, title: TITLE })
+    // the workbench is meant to stay beside the chat: open it at every start
+    void $.ui.open({ id: PANE, title: TITLE })
     $.clock.every(15000, async () => {
       const fresh = (await $.store.get(STORE_KEY)) as TodoItem[] | undefined
       if (!Array.isArray(fresh)) return
@@ -79,6 +80,7 @@ export const register: Register = on => {
       ...l.filter(x => x.id !== id && !(x.id.startsWith('auto-') && Date.parse(x.added.replace(' ', 'T')) < cutoff)),
       { id, kind: 'run', text, where: title, added: localStamp() },
     ])
+    void $.ui.open({ id: PANE, title: TITLE })
     return r
   })
   on('classic.Stop', async ($, e, next) => {
