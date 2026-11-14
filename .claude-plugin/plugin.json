@@ -1,6 +1,6 @@
 {
   "name": "owner-todo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "工作台 / Workbench: a side pane that shows what your sessions are running and what is waiting for your decision, with one-click answer buttons",
   "author": { "name": "wuyanbo9" },
   "license": "MIT",

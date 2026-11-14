@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { Register } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 
 import type { TodoItem } from '../types'
 
@@ -21,6 +21,13 @@ const localStamp = () => {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+async function writeList($: EngineInterface, fn: (l: TodoItem[]) => TodoItem[]) {
+  const fresh = ((await $.store.get(STORE_KEY)) as TodoItem[] | undefined) ?? []
+  const next = fn(fresh)
+  await $.store.set(STORE_KEY, next)
+  await update($, items, () => next)
 }
 
 export const register: Register = on => {
@@ -56,6 +63,28 @@ export const register: Register = on => {
       if (fresh.some(x => !cur.some(y => y.id === x.id))) void $.ui.open({ id: PANE, title: TITLE })
     })
     return next(e)
+  })
+
+  // Automatic 「正在运行」 rows: while a session with this plugin runs a turn, its own row (title + what it was asked)
+  // sits in the shared list; the row goes when the turn stops. Rows left by a session that died go after 6 hours.
+  const autoId = (sid: string) => `auto-${sid}`
+  on('classic.UserPromptSubmit', async ($, e, next) => {
+    const r = await next(e)
+    if (e.agent_id) return r
+    const title = (e as unknown as { session_title?: string }).session_title || (await $.session.cwd()).split('/').pop() || '—'
+    const text = String((e as unknown as { prompt?: string }).prompt ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || '…'
+    const id = autoId(e.session_id)
+    const cutoff = Date.now() - 6 * 3600 * 1000
+    await writeList($, l => [
+      ...l.filter(x => x.id !== id && !(x.id.startsWith('auto-') && Date.parse(x.added.replace(' ', 'T')) < cutoff)),
+      { id, kind: 'run', text, where: title, added: localStamp() },
+    ])
+    return r
+  })
+  on('classic.Stop', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agent_id) await writeList($, l => l.filter(x => x.id !== autoId(e.session_id)))
+    return r
   })
 
   on('command.run', { command: 'todo' }, async $ => {
