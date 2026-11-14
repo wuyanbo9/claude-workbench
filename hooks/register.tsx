@@ -94,7 +94,15 @@ export const register: Register = on => {
     const r = await next(e)
     if (e.agent_id) return r
     const title = (e as unknown as { session_title?: string }).session_title || (await $.session.cwd()).split('/').pop() || '—'
-    const text = String((e as unknown as { prompt?: string }).prompt ?? '').replace(/\s+/g, ' ').trim().slice(0, 120) || '…'
+    // a message from another session arrives wrapped in a tag: show what it says, not the wrapper
+    const raw = String((e as unknown as { prompt?: string }).prompt ?? '')
+    const text =
+      raw
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/^\s*[（(][^）)]{0,20}[）)]/, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120) || '…'
     const id = autoId(e.session_id)
     const cutoff = Date.now() - 6 * 3600 * 1000
     await writeList($, l => [
@@ -153,7 +161,11 @@ export const register: Register = on => {
       await writeList($, l => l.filter(y => y.id !== x.id))
       await deliver($, x.from, reply)
     }
-    const running = list.filter(x => x.kind === 'run').sort((a, b) => b.added.localeCompare(a.added))
+    // a session already listed by hand isn't listed again by its own automatic row
+    const byHand = new Set(list.filter(x => x.kind === 'run' && !x.id.startsWith('auto-')).map(x => x.where))
+    const running = list
+      .filter(x => x.kind === 'run' && !(x.id.startsWith('auto-') && byHand.has(x.where)))
+      .sort((a, b) => b.added.localeCompare(a.added))
     const todos = [...list.filter(x => x.kind === 'decide'), ...list.filter(x => x.kind === 'do')]
 
     const runRow = (x: TodoItem) => (
