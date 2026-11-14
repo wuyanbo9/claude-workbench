@@ -16,6 +16,13 @@ const DESCRIPTION = [
   '(the exact words to type); for a choice give options (buttons, recommended first). action "done": id (or "all" with kind). action "list": returns the current items.',
 ].join(' ')
 
+// 'YYYY-MM-DD HH:MM' in the machine's own time zone (toISOString would be UTC)
+const localStamp = () => {
+  const d = new Date()
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const stored = (await $.store.get(STORE_KEY)) as TodoItem[] | undefined
@@ -69,7 +76,7 @@ export const register: Register = on => {
         where: input.where || undefined,
         say: input.say || undefined,
         options: Array.isArray((input as unknown as { options?: unknown }).options) ? ((input as unknown as { options: string[] }).options).slice(0, 4) : undefined,
-        added: new Date().toISOString().slice(0, 16).replace('T', ' '),
+        added: localStamp(),
       }
       await update($, items, list => [...(list ?? []), item])
       note = `added ${item.id}`
@@ -83,7 +90,7 @@ export const register: Register = on => {
     const now = await read($, items)
     await $.store.set(STORE_KEY, now)
     if (action === 'add') void $.ui.open({ id: PANE, title: TITLE })
-    const lines = now.map(x => `${x.id} [${x.kind}] ${x.text}${x.where ? ` @${x.where}` : ''}${x.say ? ` 「${x.say}」` : ''}`)
+    const lines = now.map(x => `${x.id} [${x.kind}] ${x.added} ${x.text}${x.where ? ` @${x.where}` : ''}${x.say ? ` 「${x.say}」` : ''}`)
     return { result: [note, ...lines].filter(Boolean).join('\n') || '(empty)' }
   })
 
