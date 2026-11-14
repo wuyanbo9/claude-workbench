@@ -10,7 +10,7 @@ const items = atom({ plugin: 'owner-todo', key: 'items' } as const, [] as TodoIt
 
 const TOOL = 'owner_todo'
 const DESCRIPTION = [
-  "For the one session that coordinates the others (other sessions: only action list). Keeps the owner's side pane (待你决定 / 待你执行) up to date. Call it whenever a reply adds or settles an item.",
+  "Any session may add cards for the owner; a button press answers the session that added the card. Keeps the owner's side pane (待你决定 / 待你执行) up to date. Call it whenever a reply adds or settles an item.",
   'action "add": kind "decide" (a real choice or approval only the owner can give), "run" (a task now running in some session: text = what, where = that session\'s own title exactly as the sidebar shows it; mark done when it finishes) or "do" (an owner-only action whose',
   'prerequisite is already done, e.g. run a deploy step), text (short Chinese), optional where (which session or page) and say',
   '(the exact words to type); for a choice give options (buttons, recommended first). action "done": id (or "all" with kind). action "list": returns the current items.',
@@ -21,6 +21,26 @@ const localStamp = () => {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+const REPLY_KEY = 'replies-1'
+type Reply = { id: string; to: string; text: string }
+
+// A press answers the session that added the card: here, or queued for that session to pick up.
+async function deliver($: EngineInterface, to: string | undefined, text: string) {
+  const me = await $.session.id()
+  if (!to || to === me) return void (await $.prompt.submit({ text }))
+  const q = ((await $.store.get(REPLY_KEY)) as Reply[] | undefined) ?? []
+  await $.store.set(REPLY_KEY, [...q, { id: Math.random().toString(36).slice(2, 9), to, text }])
+}
+
+async function pickUpReplies($: EngineInterface) {
+  const me = await $.session.id()
+  const q = ((await $.store.get(REPLY_KEY)) as Reply[] | undefined) ?? []
+  const mine = q.filter(r => r.to === me)
+  if (!mine.length) return
+  await $.store.set(REPLY_KEY, q.filter(r => r.to !== me))
+  for (const r of mine) await $.prompt.submit({ text: r.text })
 }
 
 async function writeList($: EngineInterface, fn: (l: TodoItem[]) => TodoItem[]) {
@@ -55,6 +75,7 @@ export const register: Register = on => {
     // every session shares the store: open only when something waits, and pick up other sessions' changes
     // the workbench is meant to stay beside the chat: open it at every start
     void $.ui.open({ id: PANE, title: TITLE })
+    $.clock.every(4000, () => pickUpReplies($))
     $.clock.every(15000, async () => {
       const fresh = (await $.store.get(STORE_KEY)) as TodoItem[] | undefined
       if (!Array.isArray(fresh)) return
@@ -107,19 +128,19 @@ export const register: Register = on => {
         where: input.where || undefined,
         say: input.say || undefined,
         options: Array.isArray((input as unknown as { options?: unknown }).options) ? ((input as unknown as { options: string[] }).options).slice(0, 4) : undefined,
+        from: await $.session.id(),
         added: localStamp(),
       }
-      await update($, items, list => [...(list ?? []), item])
+      await writeList($, list => [...list, item])
       note = `added ${item.id}`
     } else if (action === 'done') {
       if (!input.id) return { deny: 'done needs id (or "all" with kind)' }
-      await update($, items, list =>
-        (list ?? []).filter(x => !(input.id === 'all' ? !input.kind || x.kind === input.kind : x.id === input.id)),
+      await writeList($, list =>
+        list.filter(x => !(input.id === 'all' ? !input.kind || x.kind === input.kind : x.id === input.id)),
       )
       note = `removed ${input.id}`
     } else if (action !== 'list') return { deny: 'action must be add, done or list' }
     const now = await read($, items)
-    await $.store.set(STORE_KEY, now)
     if (action === 'add') void $.ui.open({ id: PANE, title: TITLE })
     const lines = now.map(x => `${x.id} [${x.kind}] ${x.added} ${x.text}${x.where ? ` @${x.where}` : ''}${x.say ? ` 「${x.say}」` : ''}`)
     return { result: [note, ...lines].filter(Boolean).join('\n') || '(empty)' }
@@ -129,9 +150,8 @@ export const register: Register = on => {
     const { Box, Text, Button } = $.ui.resolve(e)
     const list = await read($, items)
     const answer = async (x: TodoItem, reply: string) => {
-      await update($, items, l => (l ?? []).filter(y => y.id !== x.id))
-      await $.store.set(STORE_KEY, await read($, items))
-      await $.prompt.submit({ text: reply })
+      await writeList($, l => l.filter(y => y.id !== x.id))
+      await deliver($, x.from, reply)
     }
     const running = list.filter(x => x.kind === 'run').sort((a, b) => b.added.localeCompare(a.added))
     const todos = [...list.filter(x => x.kind === 'decide'), ...list.filter(x => x.kind === 'do')]
