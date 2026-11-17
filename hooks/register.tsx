@@ -196,6 +196,20 @@ export const register: Register = on => {
     return r
   })
 
+  // Every session that has the tool is told to use it, whatever project it is in:
+  // a question for the person goes to the pane as a card, not only into the chat.
+  const USE_IT = [
+    'The owner_todo tool feeds the 工作台 side pane, where this person answers you with buttons.',
+    'Whenever a reply asks them to choose or approve something (even a small yes/no), call owner_todo add in that same reply:',
+    'kind "decide", short text, 2–4 options of at most 8 characters, recommended first. For an action only they can take, use kind "do".',
+    'A press arrives as their next message. Mark an item done as soon as it is settled another way.',
+  ].join(' ')
+  on('prompt.compose', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.tools.some(t => t.endsWith('owner_todo'))) return r
+    return { sections: [...r.sections, { id: 'owner-todo:use', text: USE_IT, scope: 'session' as const }] }
+  })
+
   on('command.run', { command: 'todo' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: '已打开工作台。' }
@@ -302,10 +316,10 @@ export const register: Register = on => {
                 {decide ? '决定' : '执行'}
               </Text>
             </Box>
-            {x.where && (
+            {(x.where || (x.project && x.project !== here)) && (
               <Box flexShrink={1} minWidth={0}>
                 <Text size="caption" color="inactive" wrap="truncate-end">
-                  {x.where}
+                  {[x.project && x.project !== here ? projectName(x.project) : '', x.where ?? ''].filter(Boolean).join(' · ')}
                 </Text>
               </Box>
             )}
