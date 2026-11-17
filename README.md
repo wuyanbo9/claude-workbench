@@ -11,7 +11,7 @@ Sessions fill it through the tool `mcp__owner-todo__owner_todo` (`add` with kind
 
 ## Footer: stats and open issues
 
-Under the cards, an **Issues** card shows how many GitHub issues are open in the session's repository; **Show** lists the newest 8 (number, title, age, and a ↗ that opens it in the browser). The shown/hidden state is remembered. At the very bottom, one small line of stats: lines of code · commits · issues. When nothing is running and nothing waits, the pane draws nothing at all.
+Under the cards, an **Issues** card shows how many GitHub issues are open in the session's repository; **Show** lists the newest 8 (number, title, age, and a ↗ that opens it in the browser). The shown/hidden state is remembered. At the very bottom, one small line of stats: lines of code · commits · issues. When nothing is running and nothing waits, only the Issues card and the stats are shown.
 
 - **Lines of code**: physical lines (as `wc -l`) of files tracked at `HEAD`, filtered by extension. Excluded: `dist/ build/ out/ .next/ vendor/ node_modules/ generated/ __generated__/`, `*.min.* *.d.ts *.pb.* *.g.* *.generated.*`, files marked `linguist-generated` / `linguist-vendored` in `.gitattributes`, files over 1 MB, and binary files. Recounted only when `HEAD` or the config changes.
 - **Commits**: `git rev-list --count HEAD`.

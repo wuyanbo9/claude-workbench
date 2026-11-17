@@ -291,14 +291,13 @@ export const register: Register = on => {
     }
 
     // footer (SPEC v5 A): an Issues card after the todo cards, a small stats line at the very bottom.
-    // With nothing running and nothing to do, the pane draws nothing at all (owner 2026-11-17).
+    // With nothing running and nothing to do there is no empty-state mark: just the Issues card and the stats.
     const openCount = f?.openCount ?? 0
     const toggle = async () => {
       const next = !(await read($, expanded))
       await $.store.set(EXPANDED_KEY, next)
       await update($, expanded, () => next)
     }
-    if (running.length === 0 && todos.length === 0) return <Box flexDirection="column" />
 
     const HOVER = '#80808018'
     const statParts = [
