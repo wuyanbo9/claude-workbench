@@ -303,7 +303,6 @@ export const register: Register = on => {
     const statParts = [
       f?.lines !== undefined && { k: 'lines', value: fmtCount(f.lines), label: ' 行代码' },
       f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: ' 次提交' },
-      f?.issuesTotal !== undefined && { k: 'issues', value: fmtCount(f.issuesTotal), label: ' 个 issue' },
     ].filter(Boolean) as { k: string; value: string; label: string }[]
     const statsLine = statParts.length > 0 && (
       <Box key="stats" paddingX="md" paddingBottom="md">
