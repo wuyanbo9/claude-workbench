@@ -290,48 +290,52 @@ export const register: Register = on => {
       )
     }
 
-    // footer (SPEC v4): stats line, then the open issues folded under one row
-    const stats = [
-      f?.lines !== undefined && { k: 'lines', value: fmtCount(f.lines), label: '行代码' },
-      f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: '次提交' },
-      f?.issuesTotal !== undefined && { k: 'issues', value: fmtCount(f.issuesTotal), label: '个 issue' },
-    ].filter(Boolean) as { k: string; value: string; label: string }[]
+    // footer (SPEC v5 A): an Issues card after the todo cards, a small stats line at the very bottom.
+    // With nothing running and nothing to do, the pane draws nothing at all (owner 2026-11-17).
     const openCount = f?.openCount ?? 0
     const toggle = async () => {
       const next = !(await read($, expanded))
       await $.store.set(EXPANDED_KEY, next)
       await update($, expanded, () => next)
     }
-    const empty = running.length === 0 && todos.length === 0
-    const showFooter = stats.length > 0 || openCount > 0
-    const footerBox = showFooter && (
-      <Box key="footer" flexDirection="column" paddingX="md" paddingTop={todos.length ? 0 : 'md'} paddingBottom="md" gap="xs">
-        {stats.length > 0 && (
-          <Box flexDirection="row" flexWrap="wrap" alignItems="flex-end" gap="xs" paddingY="xs">
-            {stats.flatMap((x, i) => [
-              ...(i > 0 ? [<Text key={`sep-${i}`} size="footnote" color="inactive">·</Text>] : []),
-              <Text key={`v-${x.k}`} size="footnote" weight="semibold" tabular>
-                {x.value}
-              </Text>,
-              <Text key={`l-${x.k}`} size="footnote" color="inactive">
-                {x.label}
-              </Text>,
-            ])}
-          </Box>
-        )}
-        {openCount > 0 && (
-          <Button key="issues-toggle" plain label={`Issues ${openCount}`} onPress={toggle}>
-            <Text size="footnote" color="inactive">{isOpen ? '▾' : '▸'}</Text>
-            <Text size="footnote" weight="bold"> Issues </Text>
-            <Text size="footnote" weight="bold" color="inactive" tabular>
+    if (running.length === 0 && todos.length === 0) return <Box flexDirection="column" />
+
+    const HOVER = '#80808018'
+    const statParts = [
+      f?.lines !== undefined && { k: 'lines', value: fmtCount(f.lines), label: ' 行代码' },
+      f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: ' 次提交' },
+      f?.issuesTotal !== undefined && { k: 'issues', value: fmtCount(f.issuesTotal), label: ' 个 issue' },
+    ].filter(Boolean) as { k: string; value: string; label: string }[]
+    const statsLine = statParts.length > 0 && (
+      <Box key="stats" paddingX="md" paddingBottom="md">
+        <Text size="caption" color="inactive" tabular>
+          {statParts.flatMap((x, i) => [
+            i > 0 ? ' · ' : '',
+            <Text key={`v-${x.k}`} weight="medium" color="text">
+              {x.value}
+            </Text>,
+            x.label,
+          ])}
+        </Text>
+      </Box>
+    )
+    const issuesCard = openCount > 0 && (
+      <Box key="issues" flexDirection="column" borderStyle="round" borderColor="subtle" paddingX="md" paddingY="sm" gap="xs">
+        <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap="sm">
+          <Box flexDirection="row" alignItems="center" gap="sm">
+            <Text size="footnote" weight="semibold">
+              Issues
+            </Text>
+            <Text size="footnote" color="inactive" tabular>
               {openCount}
             </Text>
-          </Button>
-        )}
-        {openCount > 0 && isOpen && (
-          <Box flexDirection="column" gap="xs" paddingLeft="md">
+          </Box>
+          <Button key="issues-toggle" plain dimColor label={isOpen ? '收起' : '展开'} onPress={toggle} />
+        </Box>
+        {isOpen && (
+          <Box flexDirection="column">
             {(f?.open ?? []).slice(0, 8).map(i => (
-              <Box key={`iss-${i.number}`} flexDirection="row" alignItems="center" gap="sm">
+              <Box key={`iss-${i.number}`} flexDirection="row" alignItems="center" gap="sm" paddingX="sm" paddingY="xs" hover={{ backgroundColor: HOVER }}>
                 <Box flexShrink={0}>
                   <Text size="footnote" color="inactive" tabular>
                     #{i.number}
@@ -339,7 +343,7 @@ export const register: Register = on => {
                 </Box>
                 <Box flexGrow={1} flexShrink={1} minWidth={0}>
                   <Text size="footnote" wrap="truncate-end">
-                    <Link href={i.url}>{i.title}</Link>
+                    {i.title}
                   </Text>
                 </Box>
                 <Box flexShrink={0}>
@@ -347,12 +351,16 @@ export const register: Register = on => {
                     {age(i.createdAt)}
                   </Text>
                 </Box>
+                <Box flexShrink={0}>
+                  <Link href={i.url}>↗</Link>
+                </Box>
               </Box>
             ))}
             {openCount > 8 && f?.repoUrl && (
-              <Text size="footnote" color="suggestion">
-                <Link href={`${f.repoUrl}/issues`}>{`全部 ${openCount} 个 ↗`}</Link>
-              </Text>
+              <Box key="iss-more" flexDirection="row" alignItems="center" gap="xs" paddingX="sm" paddingY="xs">
+                <Text size="footnote" color="inactive">{`还有 ${openCount - 8} 个`}</Text>
+                <Link href={`${f.repoUrl}/issues`}>↗</Link>
+              </Box>
             )}
           </Box>
         )}
@@ -366,22 +374,13 @@ export const register: Register = on => {
             {running.map(runRow)}
           </Box>
         )}
-        {todos.length > 0 && (
+        {(todos.length > 0 || issuesCard) && (
           <Box flexDirection="column" paddingX="md" paddingY="md" gap="sm">
             {todos.map(card)}
+            {issuesCard}
           </Box>
         )}
-        {running.length === 0 && todos.length === 0 && (
-          <Box flexDirection="column" alignItems="center" gap="sm" paddingTop={12}>
-            <Text size="title" weight="semibold" color="success">
-              ✓
-            </Text>
-            <Text size="body" color="inactive">
-              都处理完了
-            </Text>
-          </Box>
-        )}
-        {footerBox}
+        {statsLine}
       </Box>
     )
   })
