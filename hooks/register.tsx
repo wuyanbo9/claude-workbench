@@ -260,7 +260,7 @@ export const register: Register = on => {
     const card = (x: TodoItem) => {
       const decide = x.kind === 'decide'
       return (
-        <Box key={`card-${x.id}`} flexDirection="column" borderStyle="round" borderColor="subtle" padding="md" gap="sm">
+        <Box key={`card-${x.id}`} flexDirection="column" backgroundColor={decide ? '#d9a40014' : '#2f9e5a14'} paddingX="md" paddingY="md" gap="sm">
           <Box flexDirection="row" justifyContent="space-between" alignItems="center" gap="sm">
             <Box backgroundColor={decide ? '#d9a4002e' : '#2f9e5a2e'} paddingX="xs" alignSelf="flex-start" flexShrink={0}>
               <Text size="caption" weight="semibold" color={decide ? 'warning' : 'success'}>
@@ -305,7 +305,7 @@ export const register: Register = on => {
       f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: ' 次提交' },
     ].filter(Boolean) as { k: string; value: string; label: string }[]
     const statsLine = statParts.length > 0 && (
-      <Box key="stats" paddingX="md" paddingY="md">
+      <Box key="stats" paddingX="md" paddingBottom="md">
         <Text size="caption" color="inactive" tabular>
           {statParts.flatMap((x, i) => [
             i > 0 ? ' · ' : '',
@@ -366,24 +366,18 @@ export const register: Register = on => {
     )
 
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" gap="md">
         {running.length > 0 && (
           <Box flexDirection="column" backgroundColor="#d977571a" paddingX="md" paddingY="sm" gap="sm">
             {running.map(runRow)}
           </Box>
         )}
         {todos.length > 0 && (
-          <Box flexDirection="column" paddingX="md" paddingY="md" gap="sm">
+          <Box flexDirection="column" gap="sm">
             {todos.map(card)}
           </Box>
         )}
-        {issuesCard && running.length > 0 && todos.length === 0 ? (
-          <Box key="issues-gap" flexDirection="column" paddingTop="md">
-            {issuesCard}
-          </Box>
-        ) : (
-          issuesCard
-        )}
+        {issuesCard}
         {statsLine}
       </Box>
     )
