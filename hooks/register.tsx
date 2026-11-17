@@ -152,13 +152,14 @@ export const register: Register = on => {
     const raw = String((e as unknown as { prompt?: string }).prompt ?? '')
     const text =
       raw
+        // system reminders (link notices, worktree info) ride along with the prompt: drop them whole
+        .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
         .replace(/<[^>]*>/g, ' ')
+        .replace(/^\s*Background \(from the session that started this one\):\s*/i, '')
         .replace(/^\s*[（(][^）)]{0,20}[）)]/, '')
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120) || '…'
-    // a link/status notice is not work: keep whatever row the session already has
-    if (/status, not an instruction/i.test(raw)) return r
     const project = await projectKey($, await $.session.cwd())
     const id = autoId(e.session_id)
     const cutoff = Date.now() - 6 * 3600 * 1000
