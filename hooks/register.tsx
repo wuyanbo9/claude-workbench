@@ -377,7 +377,13 @@ export const register: Register = on => {
             {todos.map(card)}
           </Box>
         )}
-        {issuesCard}
+        {issuesCard && running.length > 0 && todos.length === 0 ? (
+          <Box key="issues-gap" flexDirection="column" paddingTop="md">
+            {issuesCard}
+          </Box>
+        ) : (
+          issuesCard
+        )}
         {statsLine}
       </Box>
     )
