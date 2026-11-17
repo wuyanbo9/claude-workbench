@@ -1,4 +1,4 @@
-export type TodoItem = { id: string; kind: 'decide' | 'do' | 'run'; text: string; where?: string; say?: string; options?: string[]; from?: string; added: string }
+export type TodoItem = { id: string; kind: 'decide' | 'do' | 'run'; text: string; where?: string; say?: string; options?: string[]; from?: string; project?: string; added: string }
 
 export type FooterIssue = { number: number; title: string; url: string; createdAt: string }
 // What the pane's footer draws; a missing field is simply not drawn.

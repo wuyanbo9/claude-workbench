@@ -3,7 +3,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Footer, TodoItem } from '../types'
-import { age, commitCount, countLines, fmtCount, headSha, issues as fetchIssues, probe, type Probe, type StatsConfig } from './footer'
+import { age, commitCount, countLines, fmtCount, headSha, issues as fetchIssues, probe, projectKey, projectName, type Probe, type StatsConfig } from './footer'
 
 const PANE = 'owner-todo'
 const TITLE = '工作台'
@@ -157,11 +157,14 @@ export const register: Register = on => {
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 120) || '…'
+    // a link/status notice is not work: keep whatever row the session already has
+    if (/status, not an instruction/i.test(raw)) return r
+    const project = await projectKey($, await $.session.cwd())
     const id = autoId(e.session_id)
     const cutoff = Date.now() - 6 * 3600 * 1000
     await writeList($, l => [
       ...l.filter(x => x.id !== id && !(x.id.startsWith('auto-') && Date.parse(x.added.replace(' ', 'T')) < cutoff)),
-      { id, kind: 'run', text, where: title, added: localStamp() },
+      { id, kind: 'run', text, where: title, project, added: localStamp() },
     ])
     void $.ui.open({ id: PANE, title: TITLE })
     return r
@@ -191,6 +194,7 @@ export const register: Register = on => {
         say: input.say || undefined,
         options: Array.isArray((input as unknown as { options?: unknown }).options) ? ((input as unknown as { options: string[] }).options).slice(0, 4) : undefined,
         from: await $.session.id(),
+        project: await projectKey($, await $.session.cwd()),
         added: localStamp(),
       }
       await writeList($, list => [...list, item])
@@ -222,6 +226,16 @@ export const register: Register = on => {
     const running = list
       .filter(x => x.kind === 'run' && !(x.id.startsWith('auto-') && byHand.has(x.where)))
       .sort((a, b) => b.added.localeCompare(a.added))
+    // running rows grouped by project, this session's project first, then the most recently active
+    const here = await projectKey($, await $.session.cwd())
+    const groups: { key: string; rows: TodoItem[] }[] = []
+    for (const x of running) {
+      const key = x.project ?? ''
+      const g = groups.find(g => g.key === key)
+      if (g) g.rows.push(x)
+      else groups.push({ key, rows: [x] })
+    }
+    groups.sort((a, b) => Number(b.key === here) - Number(a.key === here))
     const todos = [...list.filter(x => x.kind === 'decide'), ...list.filter(x => x.kind === 'do')]
 
     const runRow = (x: TodoItem) => (
@@ -368,8 +382,15 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column" gap="md">
         {running.length > 0 && (
-          <Box flexDirection="column" backgroundColor="#d977571a" paddingX="md" paddingY="sm" gap="sm">
-            {running.map(runRow)}
+          <Box flexDirection="column" backgroundColor="#d977571a" paddingX="md" paddingY="sm" gap="md">
+            {groups.map(g => (
+              <Box key={`grp-${g.key || 'none'}`} flexDirection="column" gap="sm">
+                <Text size="caption" weight="semibold" color="inactive">
+                  {g.key ? projectName(g.key) : '其他'}
+                </Text>
+                {g.rows.map(runRow)}
+              </Box>
+            ))}
           </Box>
         )}
         {todos.length > 0 && (

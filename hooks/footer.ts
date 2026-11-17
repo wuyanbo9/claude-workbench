@@ -87,6 +87,19 @@ export async function countLines($: EngineInterface, cwd: string, cfg: StatsConf
   return total
 }
 
+// The project a directory belongs to: the main checkout of its git repository (worktrees share it), else the directory.
+const projects = new Map<string, string>()
+export async function projectKey($: EngineInterface, cwd: string): Promise<string> {
+  const hit = projects.get(cwd)
+  if (hit) return hit
+  const r = await run($, ['git', 'rev-parse', '--path-format=absolute', '--git-common-dir'], cwd)
+  const dir = r && r.exitCode === 0 ? r.stdout.trim() : ''
+  const key = dir ? dir.replace(/\/\.git\/?$/, '') : cwd
+  projects.set(cwd, key)
+  return key
+}
+export const projectName = (key: string) => key.replace(/\/+$/, '').split('/').pop() || key
+
 export type Probe = { git: boolean; owner?: string; name?: string }
 export async function probe($: EngineInterface, cwd: string): Promise<Probe> {
   const inside = await run($, ['git', 'rev-parse', '--is-inside-work-tree'], cwd)
