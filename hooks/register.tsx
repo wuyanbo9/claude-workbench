@@ -235,7 +235,7 @@ export const register: Register = on => {
       if (g) g.rows.push(x)
       else groups.push({ key, rows: [x] })
     }
-    groups.sort((a, b) => Number(b.key === here) - Number(a.key === here))
+    groups.sort((a, b) => Number(b.key === here) - Number(a.key === here) || Number(!!b.key) - Number(!!a.key))
     const todos = [...list.filter(x => x.kind === 'decide'), ...list.filter(x => x.kind === 'do')]
 
     const runRow = (x: TodoItem) => (
@@ -385,9 +385,11 @@ export const register: Register = on => {
           <Box flexDirection="column" backgroundColor="#d977571a" paddingX="md" paddingY="sm" gap="md">
             {groups.map(g => (
               <Box key={`grp-${g.key || 'none'}`} flexDirection="column" gap="sm">
-                <Text size="caption" weight="semibold" color="inactive">
-                  {g.key ? projectName(g.key) : '其他'}
-                </Text>
+                {g.key && (
+                  <Text size="caption" weight="semibold" color="inactive">
+                    {projectName(g.key)}
+                  </Text>
+                )}
                 {g.rows.map(runRow)}
               </Box>
             ))}
