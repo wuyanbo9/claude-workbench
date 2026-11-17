@@ -89,6 +89,19 @@ async function pickUpReplies($: EngineInterface) {
   for (const r of mine) await $.prompt.submit({ text: r.text })
 }
 
+const TITLES_KEY = 'titles-1'
+async function titleOf($: EngineInterface, sid: string, seen: string | undefined): Promise<string | undefined> {
+  const all = ((await $.store.get(TITLES_KEY)) as Record<string, string> | undefined) ?? {}
+  const t = seen?.trim()
+  if (!t) return all[sid]
+  if (all[sid] !== t) {
+    // keep the 200 most recent
+    const next = Object.fromEntries([...Object.entries(all).filter(([k]) => k !== sid), [sid, t]].slice(-200))
+    await $.store.set(TITLES_KEY, next)
+  }
+  return t
+}
+
 async function writeList($: EngineInterface, fn: (l: TodoItem[]) => TodoItem[]) {
   const fresh = ((await $.store.get(STORE_KEY)) as TodoItem[] | undefined) ?? []
   const next = fn(fresh)
@@ -144,10 +157,17 @@ export const register: Register = on => {
   // Automatic 「正在运行」 rows: while a session with this plugin runs a turn, its own row (title + what it was asked)
   // sits in the shared list; the row goes when the turn stops. Rows left by a session that died go after 6 hours.
   const autoId = (sid: string) => `auto-${sid}`
+  // The sidebar title reaches a hook only with some events (and a new session gets one after its first prompt):
+  // remember the last one seen per session and use it when an event comes without.
+  on('classic.SessionStart', async ($, e, next) => {
+    const r = await next(e)
+    await titleOf($, e.session_id, (e as unknown as { session_title?: string }).session_title)
+    return r
+  })
   on('classic.UserPromptSubmit', async ($, e, next) => {
     const r = await next(e)
     if (e.agent_id) return r
-    const title = (e as unknown as { session_title?: string }).session_title || (await $.session.cwd()).split('/').pop() || '—'
+    const title = (await titleOf($, e.session_id, (e as unknown as { session_title?: string }).session_title)) || (await $.session.cwd()).split('/').pop() || '—'
     // a message from another session arrives wrapped in a tag: show what it says, not the wrapper
     const raw = String((e as unknown as { prompt?: string }).prompt ?? '')
     const text =
