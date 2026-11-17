@@ -305,7 +305,7 @@ export const register: Register = on => {
       f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: ' 次提交' },
     ].filter(Boolean) as { k: string; value: string; label: string }[]
     const statsLine = statParts.length > 0 && (
-      <Box key="stats" paddingX="md" paddingBottom="md">
+      <Box key="stats" paddingX="md" paddingY="md">
         <Text size="caption" color="inactive" tabular>
           {statParts.flatMap((x, i) => [
             i > 0 ? ' · ' : '',
@@ -318,7 +318,7 @@ export const register: Register = on => {
       </Box>
     )
     const issuesCard = openCount > 0 && (
-      <Box key="issues" flexDirection="column" borderStyle="round" borderColor="subtle" paddingX="md" paddingY="sm" gap="xs">
+      <Box key="issues" flexDirection="column" backgroundColor="#80808014" paddingX="md" paddingY="sm" gap="xs">
         <Box flexDirection="row" alignItems="center" justifyContent="space-between" gap="sm">
           <Box flexDirection="row" alignItems="center" gap="sm">
             <Text size="footnote" weight="semibold">
@@ -333,7 +333,7 @@ export const register: Register = on => {
         {isOpen && (
           <Box flexDirection="column">
             {(f?.open ?? []).slice(0, 8).map(i => (
-              <Box key={`iss-${i.number}`} flexDirection="row" alignItems="center" gap="sm" paddingX="sm" paddingY="xs" hover={{ backgroundColor: HOVER }}>
+              <Box key={`iss-${i.number}`} flexDirection="row" alignItems="center" gap="sm" paddingY="xs" hover={{ backgroundColor: HOVER }}>
                 <Box flexShrink={0}>
                   <Text size="footnote" color="inactive" tabular>
                     #{i.number}
@@ -355,7 +355,7 @@ export const register: Register = on => {
               </Box>
             ))}
             {openCount > 8 && f?.repoUrl && (
-              <Box key="iss-more" flexDirection="row" alignItems="center" gap="xs" paddingX="sm" paddingY="xs">
+              <Box key="iss-more" flexDirection="row" alignItems="center" gap="xs" paddingY="xs">
                 <Text size="footnote" color="inactive">{`还有 ${openCount - 8} 个`}</Text>
                 <Link href={`${f.repoUrl}/issues`}>↗</Link>
               </Box>
@@ -372,12 +372,12 @@ export const register: Register = on => {
             {running.map(runRow)}
           </Box>
         )}
-        {(todos.length > 0 || issuesCard) && (
+        {todos.length > 0 && (
           <Box flexDirection="column" paddingX="md" paddingY="md" gap="sm">
             {todos.map(card)}
-            {issuesCard}
           </Box>
         )}
+        {issuesCard}
         {statsLine}
       </Box>
     )
