@@ -1,12 +1,58 @@
 import { atom, read, update } from 'claude-code'
+// footer: stats line + open issues (see refreshFooter)
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { TodoItem } from '../types'
+import type { Footer, TodoItem } from '../types'
+import { age, commitCount, countLines, fmtCount, headSha, issues as fetchIssues, probe, type Probe, type StatsConfig } from './footer'
 
 const PANE = 'owner-todo'
 const TITLE = '工作台'
 const STORE_KEY = 'items-1'
 const items = atom({ plugin: 'owner-todo', key: 'items' } as const, [] as TodoItem[], { shape: 'items-1' })
+
+const footer = atom({ plugin: 'owner-todo', key: 'footer' } as const, null as Footer | null, { shape: 'footer-1' })
+const expanded = atom({ plugin: 'owner-todo', key: 'issuesExpanded' } as const, false, { shape: 'expanded-1' })
+const EXPANDED_KEY = 'issuesExpanded'
+const STATS_KEY = 'stats'
+const LINES_KEY = 'lines-1'
+const FOOTER_EVERY = 5 * 60 * 1000
+
+// The footer's data, refreshed on session start and every 5 minutes while the pane is up.
+// A failed refresh keeps the last numbers; nothing is ever drawn about a failure.
+let probed: { cwd: string; p: Probe } | null = null
+let linesBusy = false
+async function refreshFooter($: EngineInterface) {
+  const cwd = await $.session.cwd()
+  if (!probed || probed.cwd !== cwd) probed = { cwd, p: await probe($, cwd) }
+  const p = probed.p
+  if (!p.git) return void (await update($, footer, () => null))
+  const [commits, gh] = await Promise.all([commitCount($, cwd), p.owner && p.name ? fetchIssues($, cwd, p.owner, p.name) : Promise.resolve(null)])
+  await update($, footer, cur => ({
+    ...(cur ?? {}),
+    ...(commits !== null ? { commits } : {}),
+    ...(gh ?? {}),
+    ...(!p.owner ? { issuesTotal: undefined, openCount: undefined, open: undefined, repoUrl: undefined } : {}),
+  }))
+  // lines: cached by cwd + HEAD + config; one count at a time
+  const sha = await headSha($, cwd)
+  if (!sha || linesBusy) return
+  const cfg = ((await $.store.get(STATS_KEY)) as StatsConfig | undefined) ?? {}
+  const key = `${cwd}|${sha}|${JSON.stringify(cfg)}`
+  const cached = (await $.store.get(LINES_KEY)) as { key: string; n: number } | undefined
+  if (cached?.key === key) return void (await update($, footer, cur => ({ ...(cur ?? {}), lines: cached.n })))
+  linesBusy = true
+  try {
+    const n = await countLines($, cwd, cfg)
+    if (n !== null) {
+      await $.store.set(LINES_KEY, { key, n })
+      await update($, footer, cur => ({ ...(cur ?? {}), lines: n }))
+    }
+  } catch {
+    // keep the last number
+  } finally {
+    linesBusy = false
+  }
+}
 
 const TOOL = 'owner_todo'
 const DESCRIPTION = [
@@ -84,6 +130,14 @@ export const register: Register = on => {
       await update($, items, () => fresh)
       if (fresh.some(x => !cur.some(y => y.id === x.id))) void $.ui.open({ id: PANE, title: TITLE })
     })
+    const wasExpanded = await $.store.get(EXPANDED_KEY)
+    if (typeof wasExpanded === 'boolean') await update($, expanded, () => wasExpanded)
+    void refreshFooter($).catch(() => {})
+    $.clock.every(FOOTER_EVERY, async () => {
+      // nothing is fetched while the pane is closed
+      if (!(await $.ui.panes()).some(p => p.id === PANE && p.isPlaced)) return
+      await refreshFooter($).catch(() => {})
+    })
     return next(e)
   })
 
@@ -155,8 +209,10 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Text, Button, Link } = $.ui.resolve(e)
     const list = await read($, items)
+    const f = await read($, footer)
+    const isOpen = await read($, expanded)
     const answer = async (x: TodoItem, reply: string) => {
       await writeList($, l => l.filter(y => y.id !== x.id))
       await deliver($, x.from, reply)
@@ -234,6 +290,75 @@ export const register: Register = on => {
       )
     }
 
+    // footer (SPEC v4): stats line, then the open issues folded under one row
+    const stats = [
+      f?.lines !== undefined && { k: 'lines', value: fmtCount(f.lines), label: '行代码' },
+      f?.commits !== undefined && { k: 'commits', value: fmtCount(f.commits), label: '次提交' },
+      f?.issuesTotal !== undefined && { k: 'issues', value: fmtCount(f.issuesTotal), label: '个 issue' },
+    ].filter(Boolean) as { k: string; value: string; label: string }[]
+    const openCount = f?.openCount ?? 0
+    const toggle = async () => {
+      const next = !(await read($, expanded))
+      await $.store.set(EXPANDED_KEY, next)
+      await update($, expanded, () => next)
+    }
+    const empty = running.length === 0 && todos.length === 0
+    const showFooter = stats.length > 0 || openCount > 0
+    const footerBox = showFooter && (
+      <Box key="footer" flexDirection="column" paddingX="md" paddingTop={todos.length ? 0 : 'md'} paddingBottom="md" gap="xs">
+        {stats.length > 0 && (
+          <Box flexDirection="row" flexWrap="wrap" alignItems="flex-end" gap="xs" paddingY="xs">
+            {stats.flatMap((x, i) => [
+              ...(i > 0 ? [<Text key={`sep-${i}`} size="footnote" color="inactive">·</Text>] : []),
+              <Text key={`v-${x.k}`} size="footnote" weight="semibold" tabular>
+                {x.value}
+              </Text>,
+              <Text key={`l-${x.k}`} size="footnote" color="inactive">
+                {x.label}
+              </Text>,
+            ])}
+          </Box>
+        )}
+        {openCount > 0 && (
+          <Button key="issues-toggle" plain label={`Issues ${openCount}`} onPress={toggle}>
+            <Text size="footnote" color="inactive">{isOpen ? '▾' : '▸'}</Text>
+            <Text size="footnote" weight="bold"> Issues </Text>
+            <Text size="footnote" weight="bold" color="inactive" tabular>
+              {openCount}
+            </Text>
+          </Button>
+        )}
+        {openCount > 0 && isOpen && (
+          <Box flexDirection="column" gap="xs" paddingLeft="md">
+            {(f?.open ?? []).slice(0, 8).map(i => (
+              <Box key={`iss-${i.number}`} flexDirection="row" alignItems="center" gap="sm">
+                <Box flexShrink={0}>
+                  <Text size="footnote" color="inactive" tabular>
+                    #{i.number}
+                  </Text>
+                </Box>
+                <Box flexGrow={1} flexShrink={1} minWidth={0}>
+                  <Text size="footnote" wrap="truncate-end">
+                    <Link href={i.url}>{i.title}</Link>
+                  </Text>
+                </Box>
+                <Box flexShrink={0}>
+                  <Text size="caption" color="inactive" tabular>
+                    {age(i.createdAt)}
+                  </Text>
+                </Box>
+              </Box>
+            ))}
+            {openCount > 8 && f?.repoUrl && (
+              <Text size="footnote" color="suggestion">
+                <Link href={`${f.repoUrl}/issues`}>{`全部 ${openCount} 个 ↗`}</Link>
+              </Text>
+            )}
+          </Box>
+        )}
+      </Box>
+    )
+
     return (
       <Box flexDirection="column">
         {running.length > 0 && (
@@ -256,6 +381,7 @@ export const register: Register = on => {
             </Text>
           </Box>
         )}
+        {footerBox}
       </Box>
     )
   })

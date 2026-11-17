@@ -9,6 +9,17 @@ Items live in the plugin's store, so every session sees the same list (refreshed
 
 Sessions fill it through the tool `mcp__owner-todo__owner_todo` (`add` with kind `decide`, `do` or `run`; `done`; `list`).
 
+## Footer: stats and open issues
+
+Under the cards, the pane shows one line of stats for the session's repository — lines of code · commits · issues — and, when there are open GitHub issues, a folded `▸ Issues n` row. Expanded, it lists the newest 8 (number, title, age); a title opens in the browser. The folded/expanded state is remembered.
+
+- **Lines of code**: physical lines (as `wc -l`) of files tracked at `HEAD`, filtered by extension. Excluded: `dist/ build/ out/ .next/ vendor/ node_modules/ generated/ __generated__/`, `*.min.* *.d.ts *.pb.* *.g.* *.generated.*`, files marked `linguist-generated` / `linguist-vendored` in `.gitattributes`, files over 1 MB, and binary files. Recounted only when `HEAD` or the config changes.
+- **Commits**: `git rev-list --count HEAD`.
+- **Issues**: total (open + closed, no PRs) and open, via `gh`. Without `gh`, a login, or a GitHub remote, the issue parts are simply not shown.
+- Refreshed when the session starts and every 5 minutes while the pane is open. Nothing is written into the repository; a failure never shows an error.
+
+Config lives in the plugin store under `stats`: `extensions` (replaces the default list), `exclude` (added to the default rules; `dir/` matches a path segment, anything else is a file-name glob), `maxFileBytes`.
+
 ## Install
 
 At the prompt of a terminal session:
