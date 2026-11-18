@@ -210,6 +210,16 @@ export const register: Register = on => {
     return { sections: [...r.sections, { id: 'owner-todo:use', text: USE_IT, scope: 'session' as const }] }
   })
 
+  // Stop does not fire for a turn the person interrupts; turn.complete does, whatever the reason.
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    if (!e.agentId) {
+      const id = autoId(await $.session.id())
+      await writeList($, l => l.filter(x => x.id !== id))
+    }
+    return r
+  })
+
   on('command.run', { command: 'todo' }, async $ => {
     await $.ui.open({ id: PANE, title: TITLE })
     return { text: '已打开工作台。' }
